@@ -6,30 +6,32 @@ public class Lab2Blocking {
     public static void main(String[] args) throws Exception {
         MPI.Init(args);
 
-        int rank = MPI.COMM_WORLD.Rank();
+        int myrank = MPI.COMM_WORLD.Rank();
         int size = MPI.COMM_WORLD.Size();
+        int TAG = 0;
 
-        int[] sum = new int[1];
-        sum[0] = rank;
+        int[] buf = new int[1];
+        buf[0] = myrank;
 
-        int right = (rank + 1) % size;
-        int left = (rank - 1 + size) % size;
+        int[] received_message = new int[1];
 
-        for (int i = 0; i < size - 1; i++) {
-            int[] recv = new int[1];
-            // атомарный обмен "отправить и принять" за один вызов
-            MPI.COMM_WORLD.Sendrecv(
-                    sum, 0, 1, MPI.INT, right, 0,
-                    recv, 0, 1, MPI.INT, left, 0
-            );
-            sum[0] += recv[0];
-            System.out.printf("Rank %d: got %d from %d (step %d)%n", rank, recv[0], left, i + 1);
+
+        if (myrank == 0) {
+            MPI.COMM_WORLD.Sendrecv(buf, 0, 1, MPI.INT, myrank + 1, TAG,
+                    received_message, 0, 1, MPI.INT, size - 1, TAG);
+            buf[0] += received_message[0];
+            System.out.println("Rank sum from process " + myrank + ": " + buf[0]);
+        } else if (myrank == (size - 1)){
+            MPI.COMM_WORLD.Recv(received_message, 0, 1, MPI.INT, myrank - 1, TAG);
+            System.out.println("Process " + myrank + " received message: " + received_message[0]);
+            buf[0] += received_message[0];
+            MPI.COMM_WORLD.Send(buf, 0, 1, MPI.INT, 0, TAG);
+        } else {
+            MPI.COMM_WORLD.Recv(received_message, 0, 1, MPI.INT, myrank - 1, TAG);
+            System.out.println("Process " + myrank + " received message: " + received_message[0]);
+            buf[0] += received_message[0];
+            MPI.COMM_WORLD.Send(buf, 0, 1, MPI.INT, myrank + 1, TAG);
         }
-
-        if (rank == 0) {
-            System.out.println("Final sum of ranks = " + sum[0]);
-        }
-
         MPI.Finalize();
     }
 }

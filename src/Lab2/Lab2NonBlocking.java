@@ -6,36 +6,35 @@ public class Lab2NonBlocking {
     public static void main(String[] args) throws Exception {
         MPI.Init(args);
 
-        int rank = MPI.COMM_WORLD.Rank();
+        int myrank = MPI.COMM_WORLD.Rank();
         int size = MPI.COMM_WORLD.Size();
+        int TAG = 0;
 
-        int[] sum = new int[1];
-        sum[0] = rank;
+        int[] buf = new int[1];
+        buf[0] = myrank;
 
-        int right = (rank + 1) % size;
-        int left = (rank - 1 + size) % size;
+        int[] received_message = new int[1];
 
-        for (int i = 0; i < size - 1; i++) {
-            int[] recv = new int[1];
-
-            // неблокирующая отправка и приём
-            Request sendReq = MPI.COMM_WORLD.Isend(sum, 0, 1, MPI.INT, right, 0);
-            Request recvReq = MPI.COMM_WORLD.Irecv(recv, 0, 1, MPI.INT, left, 0);
-
-            // ждём завершения
-            sendReq.Wait();
+        if (myrank == 0) {
+            MPI.COMM_WORLD.Isend(buf, 0, 1, MPI.INT, myrank + 1, TAG);
+            Request recvReq = MPI.COMM_WORLD.Irecv(received_message, 0, 1, MPI.INT, size - 1, TAG);
             recvReq.Wait();
+            buf[0] += received_message[0];
+            System.out.println("Rank sum from process " + myrank + ": " + buf[0]);
 
-            System.out.printf("Rank %d sent %d to %d and received %d from %d (step %d)%n",
-                    rank, sum[0], right, recv[0], left, i + 1);
-
-            sum[0] += recv[0];
+        } else if (myrank == (size - 1)) {
+            Request recvReq = MPI.COMM_WORLD.Irecv(received_message, 0, 1, MPI.INT, myrank - 1, TAG);
+            recvReq.Wait();
+            System.out.println("Process " + myrank + " received message: " + received_message[0]);
+            buf[0] += received_message[0];
+            MPI.COMM_WORLD.Isend(buf, 0, 1, MPI.INT, 0, TAG);
+        } else {
+            Request recvReq = MPI.COMM_WORLD.Irecv(received_message, 0, 1, MPI.INT, myrank - 1, TAG);
+            recvReq.Wait();
+            System.out.println("Process " + myrank + " received message: " + received_message[0]);
+            buf[0] += received_message[0];
+            MPI.COMM_WORLD.Isend(buf, 0, 1, MPI.INT, myrank + 1, TAG);
         }
-
-        if (rank == 0) {
-            System.out.println("Final sum of ranks = " + sum[0]);
-        }
-
         MPI.Finalize();
     }
 }

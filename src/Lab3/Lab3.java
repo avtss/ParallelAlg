@@ -12,13 +12,12 @@ public class Lab3 {
         int size = MPI.COMM_WORLD.Size();
         int TAG = 0;
 
-        // Для примера возьмём массив, который будем "фильтровать"
         int[] data = null;
 
         if (rank == 0) {
-            // Главный процесс делит массив на блоки
+            //0 процесс делит массив на блоки
             int[] full = {3, 1, 5, 2, 8, 4};
-            int blockSize = full.length / (size - 1); // оставляем 0 для сбора
+            int blockSize = full.length / (size - 1);
             int extra = full.length % (size - 1);
 
             int offset = 0;
@@ -33,28 +32,26 @@ public class Lab3 {
                 req.Wait();
             }
         } else {
-            // --- Получение блока ---
+            // получение блока массива
             Status st = MPI.COMM_WORLD.Probe(0, TAG);
             int count = st.Get_count(MPI.INT);
             data = new int[count];
 
             Request rRecv = MPI.COMM_WORLD.Irecv(data, 0, count, MPI.INT, 0, TAG);
-            rRecv.Wait(); // дождались получения блока
+            rRecv.Wait();
 
-            long t1 = System.currentTimeMillis();
-            Arrays.sort(data); // сортировка блока
-            long t2 = System.currentTimeMillis();
+            Arrays.sort(data); // сортировка отдельного блока
 
-            System.out.printf("Rank %d sorted %s in %d ms%n",
-                    rank, Arrays.toString(data), (t2 - t1));
+            System.out.printf("Rank %d sorted %s\n",
+                    rank, Arrays.toString(data));
 
-            // Отправляем отсортированный блок обратно
+            // отправка отсортированного блока обратно
             Request rSend = MPI.COMM_WORLD.Isend(data, 0, count, MPI.INT, 0, TAG);
             rSend.Wait();
         }
 
         if (rank == 0) {
-            // --- Сбор всех отсортированных блоков ---
+            // соединение всех отсортированных блоков
             int[] result = new int[0];
             for (int i = 1; i < size; i++) {
                 Status st = MPI.COMM_WORLD.Probe(i, TAG);
@@ -71,8 +68,9 @@ public class Lab3 {
                 result = tmp;
             }
 
-            Arrays.sort(result); // финальная сортировка
-            System.out.println("Final merged result = " + Arrays.toString(result));
+            Arrays.sort(result);
+
+            System.out.println("Result = " + Arrays.toString(result));
         }
 
         MPI.Finalize();
